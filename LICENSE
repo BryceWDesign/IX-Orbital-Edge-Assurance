@@ -1,0 +1,43 @@
+IX-Orbital-Edge-Assurance Source-Available Evaluation License v1.0
+
+Copyright (c) 2026 Bryce Lovell. All rights reserved.
+
+1. Scope. This license applies to the original code, tests, examples, data,
+documentation, and other materials distributed in this repository (the
+"Software"). No third-party software is incorporated in this release.
+
+2. Evaluation permission. You may download, inspect, and run the unmodified
+Software in a private, non-operational environment solely to evaluate whether
+to seek a separate written license. A prospective organization may allow its
+own personnel to perform this internal evaluation. Keep this notice with every
+permitted internal copy. This permission is nonexclusive, nontransferable,
+revocable upon breach, and grants no right to deploy or distribute.
+
+3. Restrictions. Without a separate written agreement from Bryce Lovell, you
+may not use the Software for production, spacecraft operations, customer work,
+funded pilots, paid services, commercial profit, procurement deliverables, or
+any real mission decision. You may not publish, redistribute, sublicense,
+modify, merge, create derivative software, use the Software as training data or
+benchmark material for another AI model, offer it as a hosted service, or
+incorporate it into another product.
+This evaluation permission grants no patent or trademark rights.
+
+4. Commercial license and ownership. For commercial, operational, integration,
+or other rights beyond Section 2, contact Bryce Lovell and obtain a separate
+written agreement. Access to this repository, payment for an evaluation, or
+commercial discussions do not transfer ownership. Any transfer of copyright
+or other assignable intellectual property requires an express written
+assignment signed by the relevant rights holder; its scope and price must be
+agreed separately. No such transfer is made by this license.
+
+5. No operational suitability. This is a ground-only research prototype. It
+has not been qualified for flight, security, safety, procurement, or regulatory
+use. You bear responsibility for your evaluation environment and conclusions.
+
+6. Disclaimer. THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY
+KIND, EXPRESS OR IMPLIED, INCLUDING MERCHANTABILITY, FITNESS FOR A PARTICULAR
+PURPOSE, AND NONINFRINGEMENT. TO THE MAXIMUM EXTENT PERMITTED BY LAW, THE
+AUTHOR IS NOT LIABLE FOR ANY CLAIM OR DAMAGES ARISING FROM ITS USE.
+
+If you do not accept these terms, you have no license to download, copy, or
+run the Software. All rights not expressly granted are reserved.

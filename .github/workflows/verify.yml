@@ -1,0 +1,24 @@
+name: Verify research release
+on:
+  push:
+  pull_request:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.11', '3.12', '3.13']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Compile source
+        run: python -m compileall -q orbital_assurance tests
+      - name: Run behavioral and adversarial checks
+        run: python -m unittest discover -s tests -v
+      - name: Generate and verify independent evidence
+        run: |
+          python -m orbital_assurance demo --output /tmp/oea-example
+          python -m orbital_assurance verify /tmp/oea-example

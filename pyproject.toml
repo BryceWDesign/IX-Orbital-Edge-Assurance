@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ix-orbital-edge-assurance"
+version = "1.0.0"
+description = "Evaluation-only ground simulator for governed spacecraft edge AI"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {file = "LICENSE"}
+authors = [{name = "Bryce Lovell"}]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "License :: Other/Proprietary License",
+  "Development Status :: 3 - Alpha",
+]
+
+[project.scripts]
+ix-orbital-edge = "orbital_assurance.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["orbital_assurance*"]
+
+[tool.setuptools.package-data]
+orbital_assurance = ["py.typed"]

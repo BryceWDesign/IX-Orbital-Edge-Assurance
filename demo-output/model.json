@@ -1,0 +1,1 @@
+{"bias":-6.914799309,"feature_schema":["temperature","vibration","current","battery"],"kind":"synthetic_logistic_v1","training_count":360,"training_data":"generated_synthetic_only","training_seed":403,"weights":[7.690248685,4.336418112,3.614002645,-0.245907394]}

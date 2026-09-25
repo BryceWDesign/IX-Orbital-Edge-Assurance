@@ -1,0 +1,1 @@
+{"allowed_actions":["send_priority","send_summary","queue_priority","queue_summary","hold_raw_for_review"],"battery_floor_percent":12.0,"contact_budget_bytes":1700,"control_commands_enabled":false,"minimum_link_quality":0.35,"queue_capacity_bytes":2800,"schema":"oea.policy.v1","threshold":0.6}
