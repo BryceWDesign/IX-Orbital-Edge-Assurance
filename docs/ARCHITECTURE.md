@@ -1,60 +1,124 @@
-# System boundary and design
+# Architecture, v2.0.0
 
-This release is an offline software experiment on a terrestrial computer. Its
-edge, contact window, ground review, and cloud-side release preparation are
-*roles in one local process*. It has no network, cloud credentials, radio,
-spacecraft command bus, spacecraft fault-management integration, or connection
-to a real sensor. It cannot issue actuator commands.
+## System boundary
 
-## Separation of concerns
+IX-Orbital-Edge-Assurance v2.0.0 is a local evaluation runtime representing
+three logical roles: **ground release authority**, **spacecraft edge runtime**,
+and **ground assurance review**. They execute on one terrestrial computer in
+the demo. There is no spacecraft interface or control path.
 
-| Stage | Implemented behavior | Boundary |
-| --- | --- | --- |
-| Preparation | Train a four-feature logistic classifier on generated, labeled examples. Establish model and policy SHA-256 pins for one mission and expiry tick. | Pins detect mismatch relative to the supplied ground release. They do not authenticate the publisher. |
-| Edge | Check pin, mission, expiry, freshness, battery, input schema, and action allowlist; score a record only when gates pass. | Priority and routine actions produce metadata packets. Invalid state requests review and never commands hardware. |
-| Link emulator | Queue packets during a scripted outage, cap local queue bytes, prioritize review packets on later contact, and account for drops. | The contact budget is an invented byte count, without headers, retransmissions, coding, or actual RF. |
-| Ground audit | Recreate each edge decision from original inputs, verify all hashes, count false negatives and false positives using ground-only synthetic truth, and compare serialized byte volumes. | The ground has access to all observations in the example, even those whose summaries were dropped. A live system would need a separately validated raw-data retention policy. |
-| Economics | Calculate an illustrative byte-price delta, assumed compute energy, and missed-event penalty break-even expression. | No economic conclusion follows without real prices, processor measurements, workload, and mission-specific missed-event costs. |
+```text
+Ground release identity
+        |
+        | Ed25519 signed mission authority
+        v
+Synthetic observation -> qualification -> authority decision
+                         | uncertainty
+                         | drift
+                         | freshness
+                         | sensor quality
+                         | battery
+                         | mission/model/policy/time/phase scope
+                         v
+          ACT / ABSTAIN / DEGRADE / RETAIN
+          REQUEST_GROUND_REVIEW / FALLBACK
+                         |
+                         | signed chained decision receipt
+                         v
+                 evidence retention
+                         |
+                         v
+              priority store/forward
+                         |
+                         v
+                 ground verification
+                         |
+                         +-> deterministic replay
+                         +-> Ed25519 verification
+                         +-> assurance-case traceability
+```
 
-The bundle contains the full scenario, model, policy, release pin, all edge
-packets, decisions, delivery events, queue drops, ground report, three-threshold
-study, and a checksum manifest. Ground truth labels never enter `edge_run.json`.
+## Authority contract
 
-## Failure semantics
+`mission_authority.json` is signed by the ground-release evaluation identity.
+It binds:
 
-- A changed model or policy, mismatched mission, or expired release pin stops
-  model scoring for the affected record and requests ground review.
-- Stale telemetry and low battery also stop model scoring for that record.
-- The only actions are packet transmission, packet queuing, or review request;
-  no action path has an actuator interface.
-- Queued packets consume a finite byte budget. Full queues discard the oldest
-  routine packet first and report every discard with its packet digest.
-- Recorded receipts bind packet hashes in order. Verification independently
-  recomputes the run and the study. Anyone able to replace the entire bundle
-  and its manifest can create a new consistent bundle, so this is **not**
-  cryptographic provenance, attestation, or an adversarial tamper guarantee.
+- mission identifier,
+- runtime subject,
+- valid tick interval,
+- model SHA-256,
+- policy SHA-256,
+- permitted decision classes,
+- permitted mission phases,
+- explicitly denied physical-control classes,
+- evaluation-only / non-operational status.
 
-## Economic interpretation
+A signature-valid authority can still be rejected if any scope does not match
+the current runtime context.
 
-`raw_baseline_serialized_bytes` is the JSON size of all raw observations if
-every one were sent. `all_packet_serialized_bytes` is the JSON size of every
-summary, including ones later dropped or still pending. The difference is a
-serialization comparison and does not account for communications overhead or
-retransmissions. `illustrative_transport_delta_usd` multiplies that difference
-in MiB by the user-supplied assumed price. Energy is an **assumption**, not a
-measurement. The break-even expression divides the transport delta by the
-number of missed synthetic faults, assuming an unrealistically perfect raw-data
-baseline. These quantities are displayed together to expose the trade, not to
-claim cost-effectiveness.
+## Runtime qualification order
 
-## Validation required before an operational proposal
+For each observation the runtime checks:
 
-Obtain authorized, labeled telemetry with held-out mission conditions. Specify
-what events are harmful, how delayed ground contact affects them, and what raw
-observations are actually retained. Measure inference latency, worst-case CPU
-load, memory, power, and storage on a candidate target processor. Use a real
-link and contact plan with packet overhead and retransmissions. Specify a
-separate authenticated release channel, secure key lifecycle, recovery state
-machine, and independent evidence collection. Run fault injection and hazard
-analysis against an actual mission boundary. None of these claims is supplied
-by the present demonstration.
+1. canonical input/schema validity,
+2. signed mission authority and scope,
+3. battery fallback floor,
+4. telemetry freshness,
+5. sensor-quality floor,
+6. synthetic-model inference,
+7. uncertainty state,
+8. distribution-shift state,
+9. contact availability,
+10. bounded authority outcome.
+
+Invalid authority and hard qualification limits fail closed to `FALLBACK`.
+Stale/low-quality data escalates to `REQUEST_GROUND_REVIEW`. Intermediate
+uncertainty produces `ABSTAIN`; stronger uncertainty produces ground review.
+Declared drift thresholds produce `DEGRADE` then `FALLBACK`. Qualified records
+during loss of contact can produce `RETAIN` so evidence is preserved for later
+review rather than silently discarded.
+
+## Decision provenance
+
+Each decision contains model, policy, authority, and raw-observation hashes,
+qualification metrics, decision reason, evidence priority, retention/review
+flags, and traceability IDs. A receipt then binds:
+
+- decision SHA-256,
+- previous receipt SHA-256,
+- traceability IDs,
+- runtime Ed25519 key ID and signature.
+
+The resulting receipt chain detects removal, reordering, or modification when
+verified against the signed records.
+
+## Assurance case
+
+`assurance_case.json` is generated from runtime evidence rather than maintained
+as a disconnected prose claim. It links:
+
+`MN-001` mission need -> hazards -> `REQ-*` requirements -> `CLM-*` claims ->
+exact signed receipt hashes.
+
+The verifier rebuilds the assurance case from `edge_run.json` and rejects a
+mismatch.
+
+## Communications behavior
+
+The link emulator assigns evidence priorities P0-P4. Fallback is P0; ground
+review and flagged risk are P1; abstain/degrade are P2; explicit retention is
+P3; nominal activity is P4. Queue capacity is finite. On contact, higher
+priority backlog is transmitted first. Under pressure, lower-priority packets
+are discarded first and every discard remains explicit in the run record.
+
+This is a byte-level store-and-forward model only. It is not an RF, CCSDS,
+latency, retransmission, coding, or orbital contact simulator.
+
+## Safety boundary
+
+The signed authority explicitly denies propulsion, attitude control, payload
+shutdown, and thermal override, while the policy sets
+`physical_control_commands_enabled=false`. No module exposes an actuator or
+spacecraft command interface. `ACT` means the bounded edge-AI decision is
+accepted for the **telemetry-triage evaluation function**, not that a physical
+spacecraft command is executed.

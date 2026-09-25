@@ -5,75 +5,85 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from orbital_assurance.bundle import make_bundle, verify_bundle
+from cryptography.exceptions import InvalidSignature
+
+from orbital_assurance.assurance import build_assurance_case, verify_assurance_case
+from orbital_assurance.bundle import FILES, make_bundle, verify_bundle
 from orbital_assurance.core import canonical
 
 
 class BundleTests(unittest.TestCase):
     def setUp(self):
-        self.folder = tempfile.TemporaryDirectory()
-        self.addCleanup(self.folder.cleanup)
-        self.path = Path(self.folder.name) / "release-evidence"
-        make_bundle(self.path, count=24, outage_start=5, outage_length=14)
+        self.temp = tempfile.TemporaryDirectory()
+        self.path = Path(self.temp.name) / "evidence"
+        make_bundle(self.path)
 
-    def _replace_and_update_manifest(self, filename, changed):
-        raw = canonical(changed) + b"\n"
-        (self.path / filename).write_bytes(raw)
-        manifest = json.loads((self.path / "manifest.json").read_bytes())
-        manifest["files"][filename] = {"bytes": len(raw), "sha256": hashlib.sha256(raw).hexdigest()}
-        (self.path / "manifest.json").write_bytes(canonical(manifest) + b"\n")
+    def tearDown(self):
+        self.temp.cleanup()
 
-    def test_can_verify_written_bundle(self):
+    def test_bundle_verifies_end_to_end(self):
         result = verify_bundle(self.path)
         self.assertTrue(result["verified"])
-        self.assertFalse(result["authenticity_verified"])
+        self.assertTrue(result["manifest_signature_verified"])
+        self.assertTrue(result["decision_signatures_verified"])
+        self.assertTrue(result["deterministic_replay_verified"])
+        self.assertTrue(result["assurance_traceability_verified"])
 
-    def test_one_byte_corruption_fails_manifest(self):
+    def test_manifest_has_exact_file_set(self):
+        manifest = json.loads((self.path / "manifest.json").read_bytes())
+        self.assertEqual(set(manifest["files"]), set(FILES))
+
+    def test_one_byte_file_corruption_fails(self):
         p = self.path / "edge_run.json"
         p.write_bytes(p.read_bytes() + b"x")
         with self.assertRaisesRegex(ValueError, "integrity mismatch"):
             verify_bundle(self.path)
 
-    def test_rehashed_tamper_still_fails_replay(self):
-        edge = json.loads((self.path / "edge_run.json").read_bytes())
-        edge["packets"][0]["reason"] = "altered"
-        self._replace_and_update_manifest("edge_run.json", edge)
-        with self.assertRaisesRegex(ValueError, "edge execution mismatch"):
-            verify_bundle(self.path)
-
-    def test_rehashed_ground_change_fails_review(self):
-        report = json.loads((self.path / "ground_review.json").read_bytes())
-        report["confusion"]["fn"] = 0
-        self._replace_and_update_manifest("ground_review.json", report)
-        with self.assertRaisesRegex(ValueError, "ground review mismatch"):
-            verify_bundle(self.path)
-
-    def test_rehashed_study_change_fails_study_replay(self):
-        study = json.loads((self.path / "threshold_study.json").read_bytes())
-        study[0]["dropped_packets"] = 0
-        self._replace_and_update_manifest("threshold_study.json", study)
-        with self.assertRaisesRegex(ValueError, "threshold study mismatch"):
-            verify_bundle(self.path)
-
-    def test_rehashed_model_mutation_fails_release_pin_semantics(self):
-        model = json.loads((self.path / "model.json").read_bytes())
-        model["bias"] += 0.3
-        self._replace_and_update_manifest("model.json", model)
-        with self.assertRaisesRegex(ValueError, "edge execution mismatch"):
-            verify_bundle(self.path)
-
-    def test_unknown_manifest_file_rejected(self):
+    def test_rehashing_file_without_resigning_manifest_fails_manifest_signature(self):
+        p = self.path / "edge_run.json"
+        edge = json.loads(p.read_bytes())
+        edge["decisions"][0]["reason"] = "forged"
+        raw = canonical(edge) + b"\n"
+        p.write_bytes(raw)
         manifest = json.loads((self.path / "manifest.json").read_bytes())
-        manifest["files"]["unapproved.json"] = {"bytes": 0, "sha256": ""}
+        manifest["files"]["edge_run.json"] = {"bytes": len(raw), "sha256": hashlib.sha256(raw).hexdigest()}
         (self.path / "manifest.json").write_bytes(canonical(manifest) + b"\n")
-        with self.assertRaisesRegex(ValueError, "file set"):
+        with self.assertRaises(InvalidSignature):
             verify_bundle(self.path)
 
-    def test_repeat_run_is_byte_identical(self):
-        second = Path(self.folder.name) / "second"
-        make_bundle(second, count=24, outage_start=5, outage_length=14)
-        self.assertEqual((self.path / "manifest.json").read_bytes(),
-                         (second / "manifest.json").read_bytes())
+    def test_manifest_signature_corruption_fails(self):
+        sig = json.loads((self.path / "manifest_signature.json").read_bytes())
+        sig["signature_b64"] = "AAAA"
+        (self.path / "manifest_signature.json").write_bytes(canonical(sig) + b"\n")
+        with self.assertRaises((InvalidSignature, ValueError)):
+            verify_bundle(self.path)
+
+    def test_assurance_case_recomputes_exactly(self):
+        edge = json.loads((self.path / "edge_run.json").read_bytes())
+        case = json.loads((self.path / "assurance_case.json").read_bytes())
+        self.assertEqual(case, build_assurance_case(edge))
+        self.assertTrue(verify_assurance_case(case, edge))
+
+    def test_assurance_case_has_supported_crypto_claim(self):
+        case = json.loads((self.path / "assurance_case.json").read_bytes())
+        claim = next(c for c in case["claims"] if c["requirement_id"] == "REQ-CRYPTO-006")
+        self.assertEqual(claim["status"], "supported")
+        self.assertEqual(len(claim["evidence_receipts"]), 60)
+
+    def test_repeat_bundle_is_byte_identical(self):
+        second = Path(self.temp.name) / "second"
+        make_bundle(second)
+        for name in (*FILES, "manifest.json", "manifest_signature.json"):
+            self.assertEqual((self.path / name).read_bytes(), (second / name).read_bytes(), name)
+
+    def test_ground_review_reports_all_states(self):
+        report = json.loads((self.path / "ground_review.json").read_bytes())
+        self.assertEqual(set(report["authority_decision_counts"]),
+                         {"ACT", "ABSTAIN", "DEGRADE", "RETAIN", "REQUEST_GROUND_REVIEW", "FALLBACK"})
+
+    def test_demo_keys_are_labeled_non_operational_in_report(self):
+        report = json.loads((self.path / "ground_review.json").read_bytes())
+        self.assertTrue(any("deterministic" in x and "non-secret" in x for x in report["limitations"]))
 
 
 if __name__ == "__main__":

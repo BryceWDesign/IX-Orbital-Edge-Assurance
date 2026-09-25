@@ -4,7 +4,7 @@ Copyright (c) 2026 Bryce Lovell. All rights reserved.
 
 1. Scope. This license applies to the original code, tests, examples, data,
 documentation, and other materials distributed in this repository (the
-"Software"). No third-party software is incorporated in this release.
+"Software"). No donor-repository source code is incorporated in this release. The declared third-party Python dependency `cryptography` is distributed under its own license and is not relicensed by this license.
 
 2. Evaluation permission. You may download, inspect, and run the unmodified
 Software in a private, non-operational environment solely to evaluate whether

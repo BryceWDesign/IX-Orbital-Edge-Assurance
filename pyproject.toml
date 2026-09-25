@@ -4,10 +4,11 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ix-orbital-edge-assurance"
-version = "1.0.0"
-description = "Evaluation-only ground simulator for governed spacecraft edge AI"
+version = "2.0.0"
+description = "Evaluation-only mission-assurance control plane for governed spacecraft edge autonomy"
 readme = "README.md"
 requires-python = ">=3.11"
+dependencies = ["cryptography>=42"]
 license = {file = "LICENSE"}
 authors = [{name = "Bryce Lovell"}]
 classifiers = [
