@@ -1,4 +1,4 @@
-name: Verify research release
+name: Verify mission-assurance release
 on:
   push:
   pull_request:
@@ -14,11 +14,13 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
+      - name: Install package and cryptographic dependency
+        run: python -m pip install -e .
       - name: Compile source
         run: python -m compileall -q orbital_assurance tests
-      - name: Run behavioral and adversarial checks
+      - name: Run behavioral, cryptographic, and adversarial checks
         run: python -m unittest discover -s tests -v
-      - name: Generate and verify independent evidence
+      - name: Generate and verify signed evidence
         run: |
           python -m orbital_assurance demo --output /tmp/oea-example
           python -m orbital_assurance verify /tmp/oea-example

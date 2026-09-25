@@ -1,3 +1,2 @@
-"""Ground-only orbital edge AI assurance research prototype."""
-
-__version__ = "1.0.0"
+"""IX-Orbital-Edge-Assurance mission-assurance evaluation runtime."""
+__version__ = "2.0.0"
